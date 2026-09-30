@@ -384,6 +384,10 @@ main:focus, [tabindex="-1"]:focus:not(:focus-visible) { outline: none; }
 
   .js .nav-toggle { display: inline-flex; }
   .js .site-header__inner { flex-wrap: nowrap; padding-block: 0; }
+  /* backdrop-filter macht die Kopfzeile zum Bezugsrahmen für position: fixed –
+     das Menü wäre dann nur kopfzeilenhoch. Solange es offen ist, entfällt der
+     Weichzeichner; die Kopfzeile bleibt deckend und geht nahtlos in die Fläche über. */
+  .nav-open .site-header { backdrop-filter: none; background: var(--ink); }
   .js .site-nav {
     position: fixed;
     inset: 0;
@@ -391,22 +395,24 @@ main:focus, [tabindex="-1"]:focus:not(:focus-visible) { outline: none; }
     display: flex;
     flex-direction: column;
     justify-content: center;
-    padding: calc(var(--header-h) + 24px) var(--gutter) 48px;
+    justify-content: safe center; /* bei niedrigen Fenstern nicht oben abschneiden */
+    padding: calc(var(--header-h) + 20px) var(--gutter) 40px;
     background: var(--ink);
     visibility: hidden;
     opacity: 0;
     transition: opacity 0.3s var(--ease-out), visibility 0s linear 0.3s;
     overflow-y: auto;
+    overscroll-behavior: contain;
   }
   .js .site-nav.is-open { visibility: visible; opacity: 1; transition: opacity 0.3s var(--ease-out); }
   .js .site-nav__list { flex-direction: column; gap: 0; }
   .js .site-nav__list li { border-bottom: 1px solid var(--hair); }
   .js .site-nav__list a {
     display: block;
-    padding: 14px 0;
+    padding: 15px 0;
     font-family: var(--font-display);
-    font-size: clamp(2rem, 9vw, 3rem);
-    line-height: 1.1;
+    font-size: clamp(1.375rem, 1.1rem + 1.4vw, 1.75rem);
+    line-height: 1.15;
     background: none;
   }
   .js .site-nav__list a:hover { color: var(--brass); }
