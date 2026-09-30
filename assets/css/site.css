@@ -80,6 +80,7 @@
   --section-y: clamp(88px, 12vw, 168px);
   --radius: 3px;
   --ease-out: cubic-bezier(0.2, 0.7, 0.1, 1);
+  --ease-emph: cubic-bezier(0.22, 1, 0.36, 1); /* betont: schneller Antritt, langes Ausschwingen */
 
   --focus: var(--brass);
   --fg: var(--ivory);
@@ -104,6 +105,10 @@ html {
   text-size-adjust: 100%;
   scroll-padding-top: calc(var(--header-h) + 16px);
   background: var(--ink);
+  /* Doppeltipp zoomt nicht mehr hinein und die 300-ms-Verzögerung auf Tippen entfällt.
+     Aufziehen mit zwei Fingern bleibt möglich – das Abschalten des Zooms
+     (user-scalable=no) wäre ein Verstoß gegen WCAG 1.4.4. */
+  touch-action: manipulation;
 }
 @media (prefers-reduced-motion: no-preference) {
   html { scroll-behavior: smooth; }
@@ -125,10 +130,22 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
+/* Bedienelemente: kein blaugrauer Aufblitzer beim Tippen, und ein hastiger
+   Doppeltipp markiert nicht versehentlich die Beschriftung. */
+a, button, label, summary, .chip, .nav-toggle {
+  -webkit-tap-highlight-color: transparent;
+}
+button, label.chip, .nav-toggle, .btn, summary {
+  -webkit-user-select: none;
+  user-select: none;
+}
+
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {
     transition-duration: 0.01ms !important;
+    transition-delay: 0s !important;
     animation-duration: 0.01ms !important;
+    animation-delay: 0s !important;
     animation-iteration-count: 1 !important;
   }
 }
@@ -181,7 +198,9 @@ main:focus, [tabindex="-1"]:focus:not(:focus-visible) { outline: none; }
   width: 100%;
   max-width: calc(var(--maxw) + 2 * var(--gutter));
   margin-inline: auto;
-  padding-inline: var(--gutter);
+  /* Im Querformat schiebt die Kameraaussparung den Inhalt weiter nach innen */
+  padding-left: max(var(--gutter), env(safe-area-inset-left, 0px));
+  padding-right: max(var(--gutter), env(safe-area-inset-right, 0px));
 }
 
 /* ---------- Die durchgehende Linie ---------------------------------------- */
@@ -289,7 +308,7 @@ main:focus, [tabindex="-1"]:focus:not(:focus-visible) { outline: none; }
   text-align: center;
   transition: background-color 0.25s var(--ease-out), color 0.25s var(--ease-out), border-color 0.25s var(--ease-out);
 }
-.btn--small { min-height: 40px; padding: 0 16px; font-size: 0.75rem; }
+.btn--small { min-height: 44px; padding: 0 18px; font-size: 0.75rem; }
 .btn--primary { background: var(--brass); color: var(--ink); }
 .btn--primary:hover { background: var(--ivory); }
 .btn--ghost { border-color: var(--control-edge); color: var(--ivory); }
@@ -327,6 +346,9 @@ main:focus, [tabindex="-1"]:focus:not(:focus-visible) { outline: none; }
   min-height: var(--header-h);
 }
 .wordmark {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
   font-family: var(--font-display);
   font-size: 1.375rem;
   line-height: 1;
@@ -336,6 +358,7 @@ main:focus, [tabindex="-1"]:focus:not(:focus-visible) { outline: none; }
 }
 .wordmark em { font-style: italic; color: var(--brass); }
 .site-nav { margin-left: auto; }
+.site-nav__cta { display: none; } /* nur im aufgeklappten Menü schmaler Geräte */
 .site-nav__list { display: flex; flex-wrap: wrap; gap: 4px 26px; }
 .site-nav__list a {
   display: inline-block;
@@ -388,6 +411,10 @@ main:focus, [tabindex="-1"]:focus:not(:focus-visible) { outline: none; }
      das Menü wäre dann nur kopfzeilenhoch. Solange es offen ist, entfällt der
      Weichzeichner; die Kopfzeile bleibt deckend und geht nahtlos in die Fläche über. */
   .nav-open .site-header { backdrop-filter: none; background: var(--ink); }
+  /* Aufklappen: Die Fläche läuft von oben ein wie Tinte über Papier. Danach
+     zeichnet sich zu jedem Eintrag die Haarlinie von links, und das Wort steigt
+     kurz dahinter auf – dieselbe Geste wie die durchgehende Linie der Seite.
+     Schließen läuft ohne Staffelung und deutlich schneller. */
   .js .site-nav {
     position: fixed;
     inset: 0;
@@ -396,17 +423,51 @@ main:focus, [tabindex="-1"]:focus:not(:focus-visible) { outline: none; }
     flex-direction: column;
     justify-content: center;
     justify-content: safe center; /* bei niedrigen Fenstern nicht oben abschneiden */
-    padding: calc(var(--header-h) + 20px) var(--gutter) 40px;
-    background: var(--ink);
+    padding:
+      calc(var(--header-h) + 20px)
+      max(var(--gutter), env(safe-area-inset-right, 0px))
+      calc(40px + env(safe-area-inset-bottom, 0px))
+      max(var(--gutter), env(safe-area-inset-left, 0px));
+    background: none; /* die Fläche liefert ::before, damit sie sich bewegen kann */
     visibility: hidden;
-    opacity: 0;
-    transition: opacity 0.3s var(--ease-out), visibility 0s linear 0.3s;
+    transition: visibility 0s linear 0.3s;
     overflow-y: auto;
     overscroll-behavior: contain;
   }
-  .js .site-nav.is-open { visibility: visible; opacity: 1; transition: opacity 0.3s var(--ease-out); }
+  /* Das Blatt: fährt von oben herunter, die Messingkante zieht voran */
+  .js .site-nav::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    background: linear-gradient(180deg, var(--espresso) 0%, var(--ink) 42%);
+    border-bottom: 1px solid var(--brass);
+    transform: translateY(-100%);
+    transition: transform 0.3s var(--ease-out);
+  }
+  .js .site-nav.is-open {
+    visibility: visible;
+    transition: visibility 0s;
+  }
+  .js .site-nav.is-open::before {
+    transform: translateY(0);
+    transition: transform 0.6s var(--ease-emph);
+  }
   .js .site-nav__list { flex-direction: column; gap: 0; }
-  .js .site-nav__list li { border-bottom: 1px solid var(--hair); }
+  .js .site-nav__list li { position: relative; border-bottom: 0; }
+  /* Haarlinie als eigene Ebene – eine Rahmenlinie ließe sich nicht zeichnen */
+  .js .site-nav__list li::after {
+    content: "";
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    height: 1px;
+    background: var(--hair);
+    transform: scaleX(0);
+    transform-origin: left center;
+    transition: transform 0.2s var(--ease-out);
+  }
   .js .site-nav__list a {
     display: block;
     padding: 15px 0;
@@ -414,8 +475,55 @@ main:focus, [tabindex="-1"]:focus:not(:focus-visible) { outline: none; }
     font-size: clamp(1.375rem, 1.1rem + 1.4vw, 1.75rem);
     line-height: 1.15;
     background: none;
+    opacity: 0;
+    transform: translateY(16px);
+    transition: opacity 0.16s var(--ease-out), transform 0.16s var(--ease-out);
   }
+  .js .site-nav.is-open .site-nav__list li::after {
+    transform: scaleX(1);
+    transition: transform 0.6s var(--ease-emph);
+    transition-delay: var(--d, 0s);
+  }
+  .js .site-nav.is-open .site-nav__list a {
+    opacity: 1;
+    transform: none;
+    transition: opacity 0.45s var(--ease-out), transform 0.6s var(--ease-emph);
+    transition-delay: calc(var(--d, 0s) + 0.05s);
+  }
+  /* Staffelung nur beim Öffnen; beim Schließen greifen die Grundregeln ohne Verzögerung */
+  .js .site-nav.is-open li:nth-child(1) { --d: 0.10s; }
+  .js .site-nav.is-open li:nth-child(2) { --d: 0.15s; }
+  .js .site-nav.is-open li:nth-child(3) { --d: 0.20s; }
+  .js .site-nav.is-open li:nth-child(4) { --d: 0.25s; }
+  .js .site-nav.is-open li:nth-child(5) { --d: 0.30s; }
   .js .site-nav__list a:hover { color: var(--brass); }
+  /* Die Handlungsaufforderung schließt das Menü ab – in der Kopfzeile ist sie
+     auf schmalen Geräten ausgeblendet, hier ist sie jederzeit erreichbar. */
+  .js .site-nav__cta {
+    display: inline-flex;
+    align-self: flex-start;
+    margin-top: clamp(28px, 5vh, 44px);
+    opacity: 0;
+    transform: translateY(16px);
+    transition: opacity 0.16s var(--ease-out), transform 0.16s var(--ease-out);
+  }
+  .js .site-nav.is-open .site-nav__cta {
+    opacity: 1;
+    transform: none;
+    transition: opacity 0.45s var(--ease-out), transform 0.6s var(--ease-emph),
+                background-color 0.25s var(--ease-out), color 0.25s var(--ease-out);
+    transition-delay: 0.38s, 0.38s, 0s, 0s;
+  }
+  /* Flache Fenster (Handy im Querformat): dichter setzen, damit alles
+     einschließlich der Schaltfläche ohne Scrollen sichtbar bleibt. */
+  @media (max-height: 480px) {
+    .js .site-nav {
+      padding-top: calc(var(--header-h) + 8px);
+      padding-bottom: calc(20px + env(safe-area-inset-bottom, 0px));
+    }
+    .js .site-nav__list a { padding: 8px 0; font-size: 1.1875rem; }
+    .js .site-nav__cta { margin-top: 18px; }
+  }
   .js .wordmark { position: relative; z-index: 2; }
   .nav-open { overflow: hidden; }
 }
@@ -498,7 +606,8 @@ main:focus, [tabindex="-1"]:focus:not(:focus-visible) { outline: none; }
 }
 .hero__name-big {
   display: block;
-  font-size: clamp(5rem, 1rem + 19vw, 15rem);
+  /* Untergrenze so, dass „Muster“ auch auf 280 px (Galaxy Fold zugeklappt) in eine Zeile passt */
+  font-size: clamp(3.75rem, 1rem + 19vw, 15rem);
   margin-left: -0.04em;
   white-space: nowrap;
 }
@@ -529,7 +638,7 @@ main:focus, [tabindex="-1"]:focus:not(:focus-visible) { outline: none; }
   font-size: 0.9375rem;
   color: var(--ivory-dim);
 }
-.hero__status a { display: inline-flex; align-items: center; gap: 10px; padding: 6px 0; text-decoration: none; }
+.hero__status a { display: inline-flex; align-items: center; min-height: 44px; gap: 10px; text-decoration: none; }
 .hero__status a::before {
   content: "";
   width: 8px; height: 8px;
@@ -668,6 +777,15 @@ main:focus, [tabindex="-1"]:focus:not(:focus-visible) { outline: none; }
 }
 .menu-item__time { white-space: nowrap; }
 
+/* Sehr schmale Geräte (Galaxy Fold zugeklappt, 280 px): Name bekommt eine
+   eigene Zeile, Punktlinie und Preis rücken darunter – die Preiskarte bleibt
+   lesbar, statt über den Rand zu laufen. */
+@media (max-width: 339px) {
+  :root { --gutter: 16px; }
+  .menu-item__row { flex-wrap: wrap; }
+  .menu-item__name { flex: 1 1 100%; }
+}
+
 /* ---------- Team ------------------------------------------------------------ */
 .section--team .fine-print { margin: -24px 0 36px; }
 .team-grid {
@@ -764,6 +882,7 @@ main:focus, [tabindex="-1"]:focus:not(:focus-visible) { outline: none; }
 .planner__step + .planner__step { margin-top: clamp(48px, 6vw, 72px); }
 .planner__legend {
   display: flex;
+  flex-wrap: wrap; /* „(optional)“ rutscht auf schmalen Geräten in die zweite Zeile */
   align-items: center;
   gap: 14px;
   padding: 0;
@@ -856,7 +975,7 @@ main:focus, [tabindex="-1"]:focus:not(:focus-visible) { outline: none; }
 
 .chips--small .chip__body {
   display: block;
-  padding: 9px 16px 8px;
+  padding: 10px 16px 9px;
   border-radius: 999px;
   font-size: 0.9375rem;
   font-weight: 600;
@@ -892,6 +1011,9 @@ main:focus, [tabindex="-1"]:focus:not(:focus-visible) { outline: none; }
   width: 100%;
   min-height: 48px;
   padding: 0 44px 0 16px;
+  /* Farbe ausdrücklich setzen: unter Windows im dunklen Modus färbt das System
+     die aufgeklappte Liste sonst nach eigenen Vorgaben. */
+  color: var(--fg);
   background: var(--ink);
   border: 1px solid var(--control-edge);
   border-radius: var(--radius);
@@ -900,6 +1022,7 @@ main:focus, [tabindex="-1"]:focus:not(:focus-visible) { outline: none; }
   cursor: pointer;
 }
 .select select:hover { border-color: var(--brass); }
+.select option { background: var(--ink); color: var(--ivory); }
 
 /* Zusammenfassung – ein Notizzettel aus Papier */
 .summary {
@@ -1209,7 +1332,13 @@ main:focus, [tabindex="-1"]:focus:not(:focus-visible) { outline: none; }
   text-transform: uppercase;
   color: var(--ivory-dim);
 }
-.contact__links a { font-size: 1.125rem; overflow-wrap: anywhere; padding-block: 4px; }
+.contact__links a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  font-size: 1.125rem;
+  overflow-wrap: anywhere;
+}
 .contact__map { margin-top: 32px; }
 .contact__map + .fine-print { margin-top: 14px; max-width: 30em; }
 .contact__side { display: grid; gap: 28px; }
@@ -1246,8 +1375,9 @@ main:focus, [tabindex="-1"]:focus:not(:focus-visible) { outline: none; }
 }
 .wordmark--footer { font-size: 1.75rem; }
 .site-footer__address { color: var(--ivory-dim); font-size: 0.9375rem; }
+.site-footer__address a { display: inline-block; padding-block: 12px; } /* Trefferfläche ≥ 24 px */
 .site-footer__nav ul { display: flex; gap: 24px; }
-.site-footer__nav a { display: inline-block; padding: 8px 0; font-size: 0.9375rem; }
+.site-footer__nav a { display: inline-flex; align-items: center; min-height: 44px; font-size: 0.9375rem; }
 .draft-note {
   grid-column: 1 / -1;
   display: flex;
